@@ -47,7 +47,7 @@ public class User {
 	private String phoneNumber;
 	@Builder.Default
 	@Column(name = "is_active")
-	private Boolean isActive = true;
+	private Boolean isActive = false;
 	@CreationTimestamp
 	@Column(name = "created_at", updatable = false)
 	private LocalDateTime createdAt;
