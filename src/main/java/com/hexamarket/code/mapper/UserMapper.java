@@ -19,13 +19,24 @@ import com.hexamarket.code.entity.User;
 @Mapper(componentModel = "spring")
 public interface UserMapper {
 	// Roles sẽ xử lý logic riêng nên sẽ không map vào
+	@Mapping(target = "id", ignore = true)
+	@Mapping(target = "isActive", ignore = true)
+	@Mapping(target = "createdAt", ignore = true)
+	@Mapping(target = "updatedAt", ignore = true)
 	@Mapping(target = "roles", ignore = true)
 	User toUser(UserCreationRequest userRequest);
 
 	@Mapping(target = "roles", source = "roles", qualifiedByName = "mapRoles")
+	@Mapping(target = "isActive", ignore = true)
 	UserResponse toUserResponse(User user);
 
 	@BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+	@Mapping(target = "id", ignore = true)
+	@Mapping(target = "username", ignore = true)
+	@Mapping(target = "password", ignore = true)
+	@Mapping(target = "createdAt", ignore = true)
+	@Mapping(target = "updatedAt", ignore = true)
+	@Mapping(target = "roles", ignore = true)
 	void updateUser(@MappingTarget User user, UserUpdateRequest userRequest);
 
 	@Named("mapRoles")

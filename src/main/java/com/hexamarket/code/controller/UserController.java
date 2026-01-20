@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,6 +43,12 @@ public class UserController {
 	@GetMapping("/{id}")
 	public ResponseEntity<UserResponse> getUser(@PathVariable Long id) {
 		return ResponseEntity.ok(userService.getUserById(id));
+	}
+
+	// Profile
+	@GetMapping("/profile")
+	public ResponseEntity<UserResponse> profile(Authentication authentication) {
+		return ResponseEntity.ok(userService.getUserByUsername(authentication.getName()));
 	}
 
 	// Route cập nhật thông tin

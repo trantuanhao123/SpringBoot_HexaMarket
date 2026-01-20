@@ -8,12 +8,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hexamarket.code.dto.request.ForgotPasswordRequest;
 import com.hexamarket.code.dto.request.LoginRequest;
+import com.hexamarket.code.dto.request.RefreshTokenRequest;
 import com.hexamarket.code.dto.request.ResetPasswordRequest;
 import com.hexamarket.code.dto.request.UserCreationRequest;
 import com.hexamarket.code.dto.request.VerifyOtpRequest;
 import com.hexamarket.code.dto.response.AuthResponse;
 import com.hexamarket.code.service.AuthService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -37,6 +39,19 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
 		return ResponseEntity.ok(authService.login(request));
+	}
+
+	// API lấy refresh token
+	@PostMapping("/refresh")
+	public ResponseEntity<AuthResponse> refresh(@RequestBody RefreshTokenRequest request) {
+		return ResponseEntity.ok(authService.refreshToken(request));
+	}
+
+	// API Đăng xuất
+	@PostMapping("/logout")
+	public ResponseEntity<Void> logout(HttpServletRequest request) {
+		authService.logout(request);
+		return ResponseEntity.ok().build();
 	}
 
 	// API Quên mật khẩu - Bước 1: Yêu cầu OTP

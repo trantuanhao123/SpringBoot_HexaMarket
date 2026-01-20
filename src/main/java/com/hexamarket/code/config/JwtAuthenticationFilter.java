@@ -9,6 +9,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.hexamarket.code.service.TokenService;
 import com.hexamarket.code.util.JwtUtils;
 
 import jakarta.servlet.FilterChain;
@@ -22,48 +23,60 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
 	private final JwtUtils jwtUtils;
 	private final UserDetailService userDetailService;
+	private final TokenService tokenService;
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
-		// 1. Lấy token từ header
-		final String authHeader = request.getHeader("Authorization");
-		final String jwt;
-		final String username;
-		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+
+		String token = jwtUtils.extractTokenFromRequest(request);
+		if (token == null) {
 			filterChain.doFilter(request, response);
 			return;
 		}
-		// Bỏ chữ Bearer
-		jwt = authHeader.substring(7);
+
 		try {
-			username = jwtUtils.extractUsername(jwt);
-			// Nếu có username và chưa được xác thực trong Context
-			if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-				UserDetails userDetails = this.userDetailService.loadUserByUsername(username);
-				// Kiểm tra tính hợp lệ của token
-				if (jwtUtils.isTokenValid(jwt, userDetails)) {
-					// Tạo đối tượng Authentication
+			// 1. Parse & validate JWT (signature + exp)
+			var claims = jwtUtils.extractAllClaims(token);
+			String jti = claims.getId();
+
+			// 2. Check if token is blacklisted
+			if (tokenService.isTokenBlacklisted(jti)) {
+				response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token revoked");
+				return;
+			}
+
+			String username = claims.getSubject();
+
+			if (SecurityContextHolder.getContext().getAuthentication() == null) {
+				UserDetails userDetails = userDetailService.loadUserByUsername(username);
+
+				if (!jwtUtils.isTokenExpired(token)) {
 					UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails,
 							null, userDetails.getAuthorities());
 					authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-					// Set vào Security Context --> Request này đã được xác thực
+
 					SecurityContextHolder.getContext().setAuthentication(authToken);
 				}
-
 			}
 		} catch (Exception e) {
-			log.error("Cannot set user authentication: {}", e.getMessage());
-
+			log.warn("JWT rejected: {}", e.getMessage());
+			response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
+			return;
 		}
+
 		filterChain.doFilter(request, response);
 	}
 
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
-		return request.getServletPath().startsWith("/api/auth/");
-	}
+		String path = request.getServletPath();
 
+		// Chỉ bỏ qua login / register
+		return path.equals("/api/auth/login") || path.equals("/api/auth/register") || path.equals("/api/auth/verify")
+				|| path.equals("/api/auth/forgot-password") || path.equals("/api/auth/reset-password");
+	}
 }

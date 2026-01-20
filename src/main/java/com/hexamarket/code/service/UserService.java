@@ -62,6 +62,12 @@ public class UserService {
 		return userMapper.toUserResponse(user);
 	}
 
+	public UserResponse getUserByUsername(String username) {
+		User user = userRepository.findByUsername(username)
+				.orElseThrow(() -> new RuntimeException("User not found with username: " + username));
+		return userMapper.toUserResponse(user);
+	}
+
 	@Transactional
 	public UserResponse updateUser(Long id, UserUpdateRequest request) {
 		User user = userRepository.findById(id)

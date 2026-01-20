@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import com.hexamarket.code.dto.request.ForgotPasswordRequest;
 import com.hexamarket.code.dto.request.LoginRequest;
+import com.hexamarket.code.dto.request.RefreshTokenRequest;
 import com.hexamarket.code.dto.request.ResetPasswordRequest;
 import com.hexamarket.code.dto.request.UserCreationRequest;
 import com.hexamarket.code.dto.request.VerifyOtpRequest;
@@ -24,6 +25,8 @@ import com.hexamarket.code.repository.RoleRepository;
 import com.hexamarket.code.repository.UserRepository;
 import com.hexamarket.code.util.JwtUtils;
 
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +41,7 @@ public class AuthService {
 	private final EmailService emailService;
 	private final AuthenticationManager authenticationManager;
 	private final JwtUtils jwtUtils;
+	private final TokenService tokenService;
 
 	// Đăng ký (Tạo user isActive = false -> Gửi OTP)
 	@Transactional
@@ -88,16 +92,70 @@ public class AuthService {
 
 	// Đăng nhập
 	public AuthResponse login(LoginRequest request) {
-		// AuthenticationManager sẽ tự động gọi UserDetailService để check user/pass +
-		// encoder
+		// AuthenticationManager sẽ tự động gọi UserDetailService để check user/pass
 		Authentication authentication = authenticationManager
 				.authenticate(new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 		// Nếu vượt qua dòng trên nghĩa là đăng nhập thành công
 		SecurityContextHolder.getContext().setAuthentication(authentication);
 		// Lấy thông tin user để tạo token
 		UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-		String jwtToken = jwtUtils.generateToken(userDetails);
-		return AuthResponse.builder().token(jwtToken).build();
+		User user = userRepository.findByUsername(userDetails.getUsername())
+				.orElseThrow(() -> new RuntimeException("User không tồn tại"));
+		String accessToken = jwtUtils.generateAccessToken(userDetails);
+		String refreshToken = jwtUtils.generateRefreshToken(user.getUsername());
+		Claims refreshClaims = jwtUtils.extractAllClaims(refreshToken);
+		String refreshJti = refreshClaims.getId();
+		tokenService.storeRefreshToken(user.getId(), refreshJti, jwtUtils.getRefreshTokenExpiration());
+		return AuthResponse.builder().token(accessToken).refreshToken(refreshToken)
+				.expiresIn(jwtUtils.getAccessTokenExpiration()).build();
+	}
+
+	// Refresh token rotation
+	public AuthResponse refreshToken(RefreshTokenRequest request) {
+		String refreshToken = request.getRefreshToken();
+		// Validate refresh token
+		jwtUtils.validateToken(refreshToken);
+		Claims claims = jwtUtils.extractAllClaims(refreshToken);
+		String oldJti = claims.getId();
+		String username = claims.getSubject();
+		// Check refresh token còn tồn tại trong redis không
+		if (!tokenService.existsRefreshToken(oldJti)) {
+			throw new RuntimeException("Refresh token đã bị thu hồi");
+		}
+		User user = userRepository.findByUsername(username)
+				.orElseThrow(() -> new RuntimeException("User không tồn tại"));
+		// Rotation: revoke refresh cũ
+		tokenService.revokeRefreshToken(oldJti);
+		// Sinh token mới
+		UserDetails userDetails = new org.springframework.security.core.userdetails.User(user.getUsername(), "",
+				new HashSet<>());
+		String newAccessToken = jwtUtils.generateAccessToken(userDetails);
+		String newRefreshToken = jwtUtils.generateRefreshToken(username);
+		Claims newRefreshClaims = jwtUtils.extractAllClaims(newRefreshToken);
+		String newJti = newRefreshClaims.getId();
+		tokenService.storeRefreshToken(user.getId(), newJti, jwtUtils.getRefreshTokenExpiration());
+		return AuthResponse.builder().token(newAccessToken).refreshToken(newRefreshToken)
+				.expiresIn(jwtUtils.getAccessTokenExpiration()).build();
+	}
+
+	// Đăng xuất
+	public void logout(HttpServletRequest request) {
+		String accessToken = jwtUtils.extractTokenFromRequest(request);
+		if (accessToken == null)
+			return;
+		// Parse access token
+		Claims accessClaims = jwtUtils.extractAllClaims(accessToken);
+		String accessJti = accessClaims.getId();
+		long accessTtl = jwtUtils.getRemainingTime(accessToken);
+		String username = accessClaims.getSubject();
+		// Blacklist access token
+		tokenService.blacklistToken(accessJti, accessTtl);
+
+		// Logout ALL: revoke toàn bộ refresh token của user
+		User user = userRepository.findByUsername(username)
+				.orElseThrow(() -> new RuntimeException("User không tồn tại"));
+
+		tokenService.logoutAll(user.getId());
 	}
 
 	// Quên mật khẩu (Bước 1: Gửi OTP)

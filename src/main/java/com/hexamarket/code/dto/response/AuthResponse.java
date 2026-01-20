@@ -11,5 +11,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class AuthResponse {
 	private String token;
-	// Mở rộng thêm: refreshToken, expirationTime,userType...
+	private String refreshToken;
+	// Giá trị mặc đinh = "Bearer"
+	@Builder.Default
+	private String tokenType = "Bearer";
+	// Thời gian hết hạn (milliseconds)
+	private long expiresIn;
 }
