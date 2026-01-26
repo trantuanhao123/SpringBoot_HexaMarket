@@ -5,6 +5,9 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import com.hexamarket.code.exception.AppException;
+import com.hexamarket.code.exception.ErrorCode;
+
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +29,7 @@ public class EmailService {
 					+ "<p>Mã này có hiệu lực trong 5 phút.</p>" + "</body></html>", true);
 			mailSender.send(message);
 		} catch (MessagingException e) {
-			throw new RuntimeException("Lỗi gửi email: " + e.getMessage());
+			throw new AppException(ErrorCode.EMAIL_SEND_FAILED);
 		}
 	}
 }

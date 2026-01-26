@@ -1,6 +1,5 @@
 package com.hexamarket.code.service;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -13,75 +12,117 @@ import com.hexamarket.code.dto.request.UserUpdateRequest;
 import com.hexamarket.code.dto.response.UserResponse;
 import com.hexamarket.code.entity.Role;
 import com.hexamarket.code.entity.User;
+import com.hexamarket.code.exception.AppException;
+import com.hexamarket.code.exception.ErrorCode;
 import com.hexamarket.code.mapper.UserMapper;
 import com.hexamarket.code.repository.RoleRepository;
 import com.hexamarket.code.repository.UserRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
-public class UserService {
+public class UserService extends BaseService {
+
 	private final UserRepository userRepository;
 	private final RoleRepository roleRepository;
 	private final UserMapper userMapper;
 	private final PasswordEncoder passwordEncoder;
 
+	/* ================= CREATE USER ================= */
+
 	@Transactional
 	public UserResponse createUser(UserCreationRequest request) {
-		// Kiểm tra username và email đã tồn tại chưa
-		if (userRepository.existsByUsername(request.getUsername())) {
-			throw new RuntimeException("Username already exists");
-		}
-		if (userRepository.existsByEmail(request.getEmail())) {
-			throw new RuntimeException("Email already exists");
-		}
-		// Mapping và Encoder
-		// Tạo entity và mã hóa password
+
+		logStart("CREATE_USER", request.getUsername());
+
+		notNull(request, ErrorCode.INVALID_REQUEST);
+		notBlank(request.getUsername(), ErrorCode.USERNAME_INVALID);
+		notBlank(request.getPassword(), ErrorCode.PASSWORD_INVALID);
+		notBlank(request.getEmail(), ErrorCode.INVALID_REQUEST_DATA);
+
+		require(!userRepository.existsByUsername(request.getUsername()), ErrorCode.USER_EXISTED);
+		require(!userRepository.existsByEmail(request.getEmail()), ErrorCode.EMAIL_EXISTED);
+
 		User user = userMapper.toUser(request);
 		user.setPassword(passwordEncoder.encode(request.getPassword()));
+		user.setIsActive(true);
 
-		// Gán roles cho user
-		Role userRole = roleRepository.findByName("ROLE_USER")
-				.orElseThrow(() -> new RuntimeException("Role USER not found"));
-		user.setRoles(new HashSet<>(Set.of(userRole)));
-		// Lưu User vào database
-		return userMapper.toUserResponse(userRepository.save(user));
+		Role role = roleRepository.findByName("ROLE_USER")
+				.orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+		user.setRoles(Set.of(role));
+
+		User saved = userRepository.save(user);
+
+		logSuccess("CREATE_USER", saved.getId());
+		return userMapper.toUserResponse(saved);
 	}
 
+	/* ================= READ ================= */
+
 	public List<UserResponse> getAllUsers() {
-		return userRepository.findAll().stream().map(userMapper::toUserResponse).collect(Collectors.toList());
+		logStart("GET_ALL_USERS");
+		List<UserResponse> users = userRepository.findAll().stream().map(userMapper::toUserResponse)
+				.collect(Collectors.toList());
+		logSuccess("GET_ALL_USERS", users.size());
+		return users;
 	}
 
 	public UserResponse getUserById(Long id) {
-		User user = userRepository.findById(id)
-				.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+		logStart("GET_USER_BY_ID", id);
+		User user = userRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 		return userMapper.toUserResponse(user);
 	}
 
 	public UserResponse getUserByUsername(String username) {
+		logStart("GET_USER_BY_USERNAME", username);
 		User user = userRepository.findByUsername(username)
-				.orElseThrow(() -> new RuntimeException("User not found with username: " + username));
+				.orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 		return userMapper.toUserResponse(user);
 	}
 
+	/* ================= UPDATE ================= */
+
 	@Transactional
 	public UserResponse updateUser(Long id, UserUpdateRequest request) {
-		User user = userRepository.findById(id)
-				.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+		logStart("UPDATE_USER", id);
+
+		User user = userRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+		// Check email trùng
+		if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
+			require(!userRepository.existsByEmail(request.getEmail()), ErrorCode.EMAIL_EXISTED);
+		}
+
+		// Nếu đổi password → encode
+//		if (request.getPassword() != null && !request.getPassword().isBlank()) {
+//			user.setPassword(passwordEncoder.encode(request.getPassword()));
+//		}
+
 		userMapper.updateUser(user, request);
-		return userMapper.toUserResponse(userRepository.save(user));
+
+		User saved = userRepository.save(user);
+		logSuccess("UPDATE_USER", id);
+
+		return userMapper.toUserResponse(saved);
 	}
+
+	/* ================= DELETE (SOFT DELETE) ================= */
 
 	@Transactional
 	public String deleteUser(Long id) {
-		if (!userRepository.existsById(id)) {
-			throw new RuntimeException("User not found with id: " + id);
-		}
-		userRepository.deleteById(id);
-		return "User deleted successfully with id: " + id;
+
+		logStart("DELETE_USER", id);
+
+		User user = userRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+		// Soft delete thay vì xoá DB
+		user.setIsActive(false);
+		userRepository.save(user);
+
+		logSuccess("DELETE_USER", id);
+		return "User deactivated successfully with id: " + id;
 	}
 }

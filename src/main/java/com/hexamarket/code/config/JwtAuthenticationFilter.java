@@ -4,7 +4,6 @@ import java.io.IOException;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -25,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private final JwtUtils jwtUtils;
-	private final UserDetailService userDetailService;
 	private final TokenService tokenService;
 
 	@Override
@@ -33,50 +31,72 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			throws ServletException, IOException {
 
 		String token = jwtUtils.extractTokenFromRequest(request);
+
+		// Nếu không có token, cho qua để SecurityConfig xử lý
+		// (401 hoặc cho phép tùy endpoint)
 		if (token == null) {
 			filterChain.doFilter(request, response);
 			return;
 		}
 
 		try {
-			// 1. Parse & validate JWT (signature + exp)
+			// 1. Parse Token (JwtUtils sẽ tự throw exception nếu hết hạn hoặc sai chữ ký)
 			var claims = jwtUtils.extractAllClaims(token);
 			String jti = claims.getId();
 
-			// 2. Check if token is blacklisted
+			// 2. Check Blacklist (Redis) - Stateful check duy nhất
 			if (tokenService.isTokenBlacklisted(jti)) {
-				response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token revoked");
+				response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
 				return;
 			}
 
-			String username = claims.getSubject();
+//			if (tokenService.isTokenBlacklisted(jti)) {
+//				log.warn("Token is blacklisted: {}", jti);
+//				SecurityContextHolder.clearContext();
+//				filterChain.doFilter(request, response); // Để ExceptionTranslationFilter xử lý
+//				return;
+//			}
 
+			// 3. Tối ưu: Lấy User và Role trực tiếp từ Token (Không query DB)
+//			String username = claims.getSubject();
+//			var authorities = jwtUtils.extractAuthorities(token);
+			Long userId = jwtUtils.extractUserId(token);
+			var authorities = jwtUtils.extractAuthorities(token);
+			// 4. Set Context
 			if (SecurityContextHolder.getContext().getAuthentication() == null) {
-				UserDetails userDetails = userDetailService.loadUserByUsername(username);
-
-				if (!jwtUtils.isTokenExpired(token)) {
-					UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails,
-							null, userDetails.getAuthorities());
-					authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-					SecurityContextHolder.getContext().setAuthentication(authToken);
-				}
+				// Tạo đối tượng Authentication
+				// Principal là username (String), Credentials là null (không cần pass),
+				// Authorities lấy từ token
+//				UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(username, null,
+//						authorities);
+				UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userId, null,
+						authorities);
+				authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+				SecurityContextHolder.getContext().setAuthentication(authToken);
 			}
+
 		} catch (Exception e) {
-			log.warn("JWT rejected: {}", e.getMessage());
-			response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
-			return;
+			// Log lỗi nhưng KHÔNG return lỗi ngay, để filterChain tiếp tục chạy.
+			// Khi đến cuối chain, nếu không có Authentication, Spring sẽ gọi
+			// AuthenticationEntryPoint.
+			log.error("JWT Authentication failed: {}", e.getMessage());
+			SecurityContextHolder.clearContext(); // Xóa context cho chắc chắn
 		}
 
 		filterChain.doFilter(request, response);
 	}
 
+//	@Override
+//	protected boolean shouldNotFilter(HttpServletRequest request) {
+//		String path = request.getServletPath();
+//
+//		// Chỉ bỏ qua login / register
+//		return path.equals("/api/auth/login") || path.equals("/api/auth/register") || path.equals("/api/auth/verify")
+//				|| path.equals("/api/auth/forgot-password") || path.equals("/api/auth/reset-password");
+//	}
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
 		String path = request.getServletPath();
-
-		// Chỉ bỏ qua login / register
-		return path.equals("/api/auth/login") || path.equals("/api/auth/register") || path.equals("/api/auth/verify")
-				|| path.equals("/api/auth/forgot-password") || path.equals("/api/auth/reset-password");
+		return path.startsWith("/api/auth/");
 	}
 }

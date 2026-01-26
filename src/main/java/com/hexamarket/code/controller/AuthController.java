@@ -12,6 +12,7 @@ import com.hexamarket.code.dto.request.RefreshTokenRequest;
 import com.hexamarket.code.dto.request.ResetPasswordRequest;
 import com.hexamarket.code.dto.request.UserCreationRequest;
 import com.hexamarket.code.dto.request.VerifyOtpRequest;
+import com.hexamarket.code.dto.response.ApiResponse;
 import com.hexamarket.code.dto.response.AuthResponse;
 import com.hexamarket.code.service.AuthService;
 
@@ -22,47 +23,43 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController extends BaseController {
+
 	private final AuthService authService;
 
 	@PostMapping("/register")
-	public ResponseEntity<String> register(@RequestBody @Valid UserCreationRequest request) {
-		return ResponseEntity.ok(authService.register(request));
+	public ResponseEntity<ApiResponse<String>> register(@RequestBody @Valid UserCreationRequest request) {
+		return created(authService.register(request), "Register success. Please verify OTP.");
 	}
 
 	@PostMapping("/verify")
-	public ResponseEntity<String> verify(@RequestBody VerifyOtpRequest request) {
-		return ResponseEntity.ok(authService.verifyAccount(request));
+	public ResponseEntity<ApiResponse<String>> verify(@RequestBody VerifyOtpRequest request) {
+		return ok(authService.verifyAccount(request));
 	}
 
-	// API Đăng nhập
 	@PostMapping("/login")
-	public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
-		return ResponseEntity.ok(authService.login(request));
+	public ResponseEntity<ApiResponse<AuthResponse>> login(@RequestBody @Valid LoginRequest request) {
+		return ok(authService.login(request));
 	}
 
-	// API lấy refresh token
 	@PostMapping("/refresh")
-	public ResponseEntity<AuthResponse> refresh(@RequestBody RefreshTokenRequest request) {
-		return ResponseEntity.ok(authService.refreshToken(request));
+	public ResponseEntity<ApiResponse<AuthResponse>> refresh(@RequestBody RefreshTokenRequest request) {
+		return ok(authService.refreshToken(request));
 	}
 
-	// API Đăng xuất
 	@PostMapping("/logout")
-	public ResponseEntity<Void> logout(HttpServletRequest request) {
+	public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
 		authService.logout(request);
-		return ResponseEntity.ok().build();
+		return okMessage("Logged out successfully");
 	}
 
-	// API Quên mật khẩu - Bước 1: Yêu cầu OTP
 	@PostMapping("/forgot-password")
-	public ResponseEntity<String> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
-		return ResponseEntity.ok(authService.requestForgotPassword(request));
+	public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
+		return ok(authService.requestForgotPassword(request));
 	}
 
-	// API Quên mật khẩu - Bước 2: Đổi mật khẩu
 	@PostMapping("/reset-password")
-	public ResponseEntity<String> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
-		return ResponseEntity.ok(authService.resetPassword(request));
+	public ResponseEntity<ApiResponse<String>> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+		return ok(authService.resetPassword(request));
 	}
 }

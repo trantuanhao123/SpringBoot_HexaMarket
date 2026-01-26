@@ -1,4 +1,6 @@
--- 1. AUTHENTICATION
+-- =============================================
+-- 1. AUTHENTICATION & USERS
+-- =============================================
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -35,7 +37,9 @@ CREATE TABLE user_addresses (
     CONSTRAINT fk_address_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- =============================================
 -- 2. PRODUCT CATALOG
+-- =============================================
 CREATE TABLE categories (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -45,7 +49,7 @@ CREATE TABLE categories (
     CONSTRAINT fk_category_parent FOREIGN KEY (parent_id) REFERENCES categories(id)
 );
 
-CREATE TABLE products ( -- Sản phẩm cha
+CREATE TABLE products ( 
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) UNIQUE NOT NULL,
@@ -60,24 +64,28 @@ CREATE TABLE products ( -- Sản phẩm cha
     CONSTRAINT fk_product_category FOREIGN KEY (category_id) REFERENCES categories(id)
 );
 
-CREATE TABLE product_variants ( -- Biến thể (SKU)
+CREATE TABLE product_variants ( 
     id BIGSERIAL PRIMARY KEY,
     product_id BIGINT NOT NULL,
     sku VARCHAR(50) UNIQUE NOT NULL,
     price DECIMAL(15, 2) NOT NULL,
-    attributes JSONB, -- {"color": "Black", "dpi": 8000}
+    attributes JSONB, 
     image_url VARCHAR(255),
+    is_deleted BOOLEAN DEFAULT FALSE,
     CONSTRAINT fk_variant_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
+-- =============================================
 -- 3. INVENTORY & ORDERS
+-- =============================================
 CREATE TABLE inventory (
     id BIGSERIAL PRIMARY KEY,
     variant_id BIGINT NOT NULL UNIQUE,
     quantity INT NOT NULL CHECK (quantity >= 0),
     reserved_quantity INT DEFAULT 0 CHECK (reserved_quantity >= 0),
-    version BIGINT DEFAULT 0, -- QUAN TRỌNG: Dùng cho Optimistic Locking
+    version BIGINT DEFAULT 0, 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE,
     CONSTRAINT fk_inventory_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id)
 );
 
@@ -106,7 +114,9 @@ CREATE TABLE order_items (
     CONSTRAINT fk_item_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id)
 );
 
+-- =============================================
 -- 4. PAYMENT
+-- =============================================
 CREATE TABLE payments (
     id BIGSERIAL PRIMARY KEY,
     order_id BIGINT NOT NULL,
@@ -120,13 +130,32 @@ CREATE TABLE payments (
 );
 
 -- =============================================
--- INDEXING (TỐI ƯU HIỆU NĂNG)
+-- 5. ADVANCED INDEXING (OPTIMIZED)
 -- =============================================
-CREATE INDEX idx_products_category ON products(category_id);
-CREATE INDEX idx_products_slug ON products(slug);
-CREATE INDEX idx_variants_product ON product_variants(product_id);
-CREATE INDEX idx_variants_sku ON product_variants(sku);
--- GIN Index cho JSONB để search thuộc tính cực nhanh
-CREATE INDEX idx_variants_attributes ON product_variants USING GIN (attributes); 
-CREATE INDEX idx_orders_user ON orders(user_id);
-CREATE INDEX idx_orders_status ON orders(status);
+
+-- Tăng tốc tìm kiếm không phân biệt hoa thường cho Product Name
+CREATE INDEX idx_products_name_lower ON products (LOWER(name));
+
+-- Tăng tốc lọc sản phẩm theo Category kết hợp trạng thái (Composite Index)
+CREATE INDEX idx_products_filter_logic ON products (category_id, is_active, is_deleted);
+
+-- Tăng tốc sắp xếp theo giá và ngày tạo
+CREATE INDEX idx_products_price_sort ON products (base_price ASC);
+CREATE INDEX idx_products_created_at_desc ON products (created_at DESC);
+
+-- Tối ưu Soft Delete cho Variants và Inventory
+CREATE INDEX idx_variants_is_deleted ON product_variants (is_deleted) WHERE is_deleted = FALSE;
+CREATE INDEX idx_inventory_is_deleted ON inventory (is_deleted) WHERE is_deleted = FALSE;
+
+-- JSONB GIN Index để search thuộc tính (DPI, Color, Size...)
+CREATE INDEX idx_variants_attributes_gin ON product_variants USING GIN (attributes);
+
+-- Partial Index cho địa chỉ mặc định (truy vấn cực nhanh cho 1 địa chỉ/1 user)
+CREATE INDEX idx_user_address_default ON user_addresses (user_id) WHERE is_default = TRUE;
+
+-- Tối ưu quản lý đơn hàng theo khách hàng và ngày tạo
+CREATE INDEX idx_orders_user_created ON orders (user_id, created_at DESC);
+CREATE INDEX idx_orders_status ON orders (status);
+
+-- Tối ưu cho User search & Auth
+CREATE INDEX idx_users_email ON users (email);

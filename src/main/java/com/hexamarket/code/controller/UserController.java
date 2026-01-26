@@ -2,7 +2,6 @@ package com.hexamarket.code.controller;
 
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hexamarket.code.dto.request.UserCreationRequest;
 import com.hexamarket.code.dto.request.UserUpdateRequest;
+import com.hexamarket.code.dto.response.ApiResponse;
 import com.hexamarket.code.dto.response.UserResponse;
 import com.hexamarket.code.service.UserService;
 
@@ -25,43 +25,40 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-public class UserController {
+public class UserController extends BaseController {
+
 	private final UserService userService;
 
-	// Route tạo user
 	@PostMapping
-	public ResponseEntity<UserResponse> createUser(@RequestBody @Valid UserCreationRequest request) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(request));
+	public ResponseEntity<ApiResponse<UserResponse>> createUser(@RequestBody @Valid UserCreationRequest request) {
+		return created(userService.createUser(request), "User created successfully");
 	}
 
-	// Route lấy danh sách user / 1 user
 	@GetMapping
-	public ResponseEntity<List<UserResponse>> getAllUsers() {
-		return ResponseEntity.ok(userService.getAllUsers());
+	public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
+		return ok(userService.getAllUsers());
 	}
 
 	@GetMapping("/{id}")
-	public ResponseEntity<UserResponse> getUser(@PathVariable Long id) {
-		return ResponseEntity.ok(userService.getUserById(id));
+	public ResponseEntity<ApiResponse<UserResponse>> getUser(@PathVariable Long id) {
+		return ok(userService.getUserById(id));
 	}
 
-	// Profile
 	@GetMapping("/profile")
-	public ResponseEntity<UserResponse> profile(Authentication authentication) {
-		return ResponseEntity.ok(userService.getUserByUsername(authentication.getName()));
+	public ResponseEntity<ApiResponse<UserResponse>> profile(Authentication authentication) {
+		Long userId = (Long) authentication.getPrincipal();
+		return ok(userService.getUserById(userId));
 	}
 
-	// Route cập nhật thông tin
 	@PutMapping("/{id}")
-	public ResponseEntity<UserResponse> updateUser(@PathVariable Long id,
+	public ResponseEntity<ApiResponse<UserResponse>> updateUser(@PathVariable Long id,
 			@RequestBody @Valid UserUpdateRequest request) {
-		return ResponseEntity.ok(userService.updateUser(id, request));
+		return ok(userService.updateUser(id, request));
 	}
 
-	// Route xóa user
 	@DeleteMapping("/{id}")
-	public ResponseEntity<String> deleteUser(@PathVariable Long id) {
-		String message = userService.deleteUser(id);
-		return ResponseEntity.ok(message);
+	public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
+		userService.deleteUser(id);
+		return deleted("User deleted successfully");
 	}
 }
