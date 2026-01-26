@@ -42,4 +42,25 @@ public class InventoryService extends BaseService {
 		return inventories;
 	}
 
+	@Transactional
+	public void restoreStocks(Map<Long, Integer> itemsToRestore) {
+		logStart("RESTORE_STOCK", itemsToRestore);
+
+		if (itemsToRestore == null || itemsToRestore.isEmpty())
+			return;
+
+		List<Long> sortedIds = itemsToRestore.keySet().stream().sorted().toList();
+		// Tái sử dụng method lock DB bạn đã có trong Repository
+		List<Inventory> inventories = inventoryRepository.findAllByVariantIdsWithLock(sortedIds);
+
+		for (Inventory inv : inventories) {
+			Integer qtyToRestore = itemsToRestore.get(inv.getVariant().getId());
+			if (qtyToRestore != null && qtyToRestore > 0) {
+				inv.setQuantity(inv.getQuantity() + qtyToRestore);
+				// Có thể trừ reservedQuantity nếu bạn implement logic giữ hàng (optional)
+			}
+		}
+		// Hibernate tự động save khi kết thúc Transaction
+		logSuccess("RESTORE_STOCK");
+	}
 }

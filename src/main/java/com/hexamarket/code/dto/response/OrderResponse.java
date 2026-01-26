@@ -15,6 +15,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class OrderResponse {
 	private Long orderId;
+	private String email;
 	private String status;
 	private String paymentStatus;
 	private BigDecimal totalAmount;

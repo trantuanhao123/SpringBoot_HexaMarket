@@ -8,12 +8,17 @@ import com.hexamarket.code.constant.OrderStatus;
 import com.hexamarket.code.dto.response.OrderResponse;
 import com.hexamarket.code.entity.Order;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = { OrderItemMapper.class })
 public interface OrderMapper {
+
 	@Mapping(target = "orderId", source = "id")
 	@Mapping(target = "status", source = "status", qualifiedByName = "mapStatus")
 	@Mapping(target = "paymentStatus", source = "paymentStatus")
+
+	// MapStruct sẽ tự động gọi OrderItemMapper.toResponse() cho từng phần tử trong
+	// list này
 	@Mapping(target = "items", source = "items")
+	@Mapping(target = "email", source = "user.email")
 	OrderResponse toOrderResponse(Order order);
 
 	@Named("mapStatus")

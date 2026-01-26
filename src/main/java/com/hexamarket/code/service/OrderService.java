@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -37,6 +39,7 @@ public class OrderService extends BaseService {
 	private final CartService cartService;
 	private final UserRepository userRepository;
 	private final OrderMapper orderMapper;
+	private final StringRedisTemplate redisTemplate;
 
 	@Transactional
 	public OrderResponse checkout(Long userId, OrderRequest request) {
@@ -94,7 +97,9 @@ public class OrderService extends BaseService {
 				cartService.clearCart(userId);
 			}
 		});
-
+		// Set Redis TTL 30 minutes
+		String redisKey = "order:timeout:" + savedOrder.getId();
+		redisTemplate.opsForValue().set(redisKey, "PENDING", 30, TimeUnit.MINUTES);
 		logSuccess("CHECKOUT", savedOrder.getId(), totalAmount);
 		return orderMapper.toOrderResponse(savedOrder);
 	}
@@ -116,4 +121,39 @@ public class OrderService extends BaseService {
 
 		return orderMapper.toOrderResponse(savedOrder);
 	}
+
+	// Xử lý hủy đơn (cho Listener và cả API hủy thủ công)
+	@Transactional
+	public void cancelUnpaidOrder(Long orderId) {
+
+		logStart("AUTO_CANCEL_ORDER", orderId);
+
+		notNull(orderId, ErrorCode.INVALID_REQUEST_DATA);
+
+		Order order = orderRepository.findById(orderId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+		// Nếu đã PAID mà listener vẫn chạy → BUG hệ thống
+		require("UNPAID".equals(order.getPaymentStatus()), ErrorCode.INVALID_STATE_TRANSITION);
+
+		// Validate state machine
+		require(order.getStatus().canTransitionTo(OrderStatus.CANCELLED), ErrorCode.INVALID_STATE_TRANSITION);
+
+		log.info("Cancelling unpaid order: {}", orderId);
+
+		/* ===== 1. UPDATE STATUS ===== */
+		order.setStatus(OrderStatus.CANCELLED);
+		orderRepository.save(order);
+
+		/* ===== 2. RESTORE STOCK ===== */
+		Map<Long, Integer> itemsToRestore = order.getItems().stream()
+				.collect(Collectors.toMap(item -> item.getVariant().getId(), OrderItem::getQuantity));
+
+		inventoryService.restoreStocks(itemsToRestore);
+
+		/* ===== 3. DELETE REDIS KEY ===== */
+		redisTemplate.delete("order:timeout:" + orderId);
+
+		logSuccess("AUTO_CANCEL_DONE", orderId);
+	}
+
 }

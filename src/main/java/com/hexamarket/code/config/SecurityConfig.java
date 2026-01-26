@@ -55,19 +55,29 @@ public class SecurityConfig {
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		http.csrf(csrf -> csrf.disable()).cors(cors -> cors.configurationSource(corsConfigurationSource()))
-				// 1. Chuyển sang stateless
+		http
+				// Tắt CSRF vì dùng JWT (Stateless)
+				.csrf(csrf -> csrf.disable())
+				// Cấu hình CORS
+				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+				// 1. Chuyển sang stateless (Không lưu session trên server)
 				.sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				// 2. Xử lý lỗi 401 trả về JSON thay vì HTML
+				// 2. Xử lý lỗi 401 trả về JSON thay vì HTML login mặc định
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
 				// 3. Thêm filter JWT trước Filter mặc định
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-				// 4. Chỉ những route được cho phép mới có thể truy cập mà không cần auth
+				// 4. Phân quyền
 				.authorizeHttpRequests(auth -> auth
+						// --- SWAGGER UI (Tài liệu API) ---
 						.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-						.requestMatchers("/api/auth/**").permitAll().requestMatchers(HttpMethod.POST, "/api/users")
-						.permitAll().anyRequest().authenticated());
-
+						// --- AUTHENTICATION (Login/Register/RefreshToken) ---
+						.requestMatchers("/api/auth/**", "/api/auth/**").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/users").permitAll() // Tạo user mới
+						// Route này bảo mật bằng HMAC Signature trong code, không cần JWT
+						.requestMatchers("/api/payment/webhook").permitAll()
+						// --- CÁC ROUTE CÒN LẠI ---
+						// Bắt buộc phải có Token hợp lệ
+						.anyRequest().authenticated());
 		return http.build();
 	}
 }
