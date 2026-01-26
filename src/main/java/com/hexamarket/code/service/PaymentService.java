@@ -26,7 +26,7 @@ public class PaymentService extends BaseService {
 	private final StringRedisTemplate redisTemplate;
 	private final NotificationService notificationService;
 
-	@Value("${security.payment.secret:mySecretKey123}")
+	@Value("${security.payment.secret}")
 	private String paymentSecret;
 
 	@Transactional
