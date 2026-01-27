@@ -4,7 +4,7 @@
 
 **Hexamarket** is a robust, modular monolithic backend system designed for B2C e-commerce platforms. It serves as a Resource Server within a Client-Side Rendering (CSR) architecture, prioritizing data integrity, high concurrency handling, and security.
 
-This project demonstrates advanced techniques in Spring Boot, including **Optimistic Locking** for inventory, **JSONB** for dynamic product attributes, and **Stateless JWT Authentication**.
+This project demonstrates advanced techniques in Spring Boot, including **Pessimistic Locking** for inventory, **JSONB** for dynamic product attributes, and **Stateless JWT Authentication**.
 ## 🏗 Architecture
 
 ![Hexamarket Architecture Diagram](architecture-diagram.png)
@@ -25,7 +25,7 @@ This project demonstrates advanced techniques in Spring Boot, including **Optimi
 
 ### 3. Order & Inventory (Concurrency Control)
 * **Atomicity:** strict `@Transactional` boundaries for order placement.
-* **Overselling Protection:** Implements **Optimistic Locking** (`@Version` column) to handle concurrent inventory updates.
+* **Overselling Protection:** Implements **Pessimistic Locking** to handle concurrent inventory updates.
 * **Order State Machine:** Strict lifecycle management (PENDING -> CONFIRMED -> SHIPPING -> COMPLETED).
 * **Auto-Cancellation:** Redis TTL or Scheduled Jobs to cancel unpaid orders after 30 minutes.
 
