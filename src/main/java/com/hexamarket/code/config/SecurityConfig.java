@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+	private final LoginRateLimitFilter loginRateLimitFilter;
 
 	// Cấu hình bcrypt với độ mạnh là 10
 	@Bean
@@ -64,20 +65,24 @@ public class SecurityConfig {
 				.sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				// 2. Xử lý lỗi 401 trả về JSON thay vì HTML login mặc định
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-				// 3. Thêm filter JWT trước Filter mặc định
+				// 3. Thêm filter giới hạn tần suất login (Chèn trước UsernamePassword)
+				.addFilterBefore(loginRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+				// 4. Thêm filter JWT (Cũng chèn trước UsernamePassword)
+				// Kết quả thứ tự chạy: RateLimit -> JWT -> UsernamePassword
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-				// 4. Phân quyền
+				// 5. Phân quyền
 				.authorizeHttpRequests(auth -> auth
 						// --- SWAGGER UI (Tài liệu API) ---
 						.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
 						// --- AUTHENTICATION (Login/Register/RefreshToken) ---
-						.requestMatchers("/api/auth/**", "/api/auth/**").permitAll()
+						.requestMatchers("/api/auth/**").permitAll() // Đã xóa bớt 1 cái trùng
 						.requestMatchers(HttpMethod.POST, "/api/users").permitAll() // Tạo user mới
 						// Route này bảo mật bằng HMAC Signature trong code, không cần JWT
 						.requestMatchers("/api/payment/webhook").permitAll()
 						// --- CÁC ROUTE CÒN LẠI ---
 						// Bắt buộc phải có Token hợp lệ
 						.anyRequest().authenticated());
+
 		return http.build();
 	}
 }

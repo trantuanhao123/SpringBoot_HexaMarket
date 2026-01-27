@@ -1,5 +1,7 @@
 package com.hexamarket.code.repository;
 
+import java.util.Optional;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -15,4 +17,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 	@Override
 	@EntityGraph(attributePaths = { "category" }) // Chỉ định các quan hệ muốn lấy luôn
 	Page<Product> findAll(Specification<Product> spec, Pageable pageable);
+
+	@EntityGraph(attributePaths = { "category", "variants" })
+	Optional<Product> findWithDetailsById(Long id);
+
 }

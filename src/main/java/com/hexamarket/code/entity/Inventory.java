@@ -25,7 +25,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 // Soft delete cho Inventory
-@SQLDelete(sql = "UPDATE inventory SET is_deleted = true WHERE id = ?")
+@SQLDelete(sql = "UPDATE inventory SET is_deleted = true WHERE id = ? AND version = ?")
 @SQLRestriction("is_deleted = false")
 public class Inventory {
 	@Id

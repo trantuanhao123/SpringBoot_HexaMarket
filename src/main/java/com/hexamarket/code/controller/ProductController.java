@@ -32,6 +32,11 @@ public class ProductController extends BaseController {
 		return ok(new PageResponse<>(page));
 	}
 
+	@GetMapping("/{id}")
+	public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable Long id) {
+		return ok(productService.getProductById(id));
+	}
+
 	@DeleteMapping("/{id}")
 	public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
 		productService.deleteProduct(id);
