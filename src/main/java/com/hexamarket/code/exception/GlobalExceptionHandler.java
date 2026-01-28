@@ -1,6 +1,7 @@
 package com.hexamarket.code.exception;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -59,5 +60,23 @@ public class GlobalExceptionHandler {
 		apiResponse.setMessage(errorCode.getMessage());
 
 		return ResponseEntity.badRequest().body(apiResponse);
+	}
+
+	// 4. Bắt lỗi sai mật khẩu hoặc username (Spring Security ném ra)
+	@ExceptionHandler(value = BadCredentialsException.class)
+	ResponseEntity<ApiResponse> handlingBadCredentials(BadCredentialsException exception) {
+
+		// Log lỗi gọn gàng, không in Stack Trace gây rối log server
+		log.warn("Login failed: Username or Password incorrect");
+
+		ApiResponse apiResponse = new ApiResponse();
+
+		// Sử dụng mã lỗi UNAUTHENTICATED (1201) bạn đã định nghĩa trong ErrorCode
+		apiResponse.setCode(ErrorCode.UNAUTHENTICATED.getCode());
+
+		// Tùy chỉnh message cho thân thiện với người dùng
+		apiResponse.setMessage("Tài khoản hoặc mật khẩu không chính xác");
+
+		return ResponseEntity.status(ErrorCode.UNAUTHENTICATED.getStatusCode()).body(apiResponse);
 	}
 }

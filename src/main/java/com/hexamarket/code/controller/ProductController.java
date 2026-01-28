@@ -3,6 +3,7 @@ package com.hexamarket.code.controller;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +25,7 @@ public class ProductController extends BaseController {
 
 	private final ProductService productService;
 
+	@PreAuthorize("permitAll()")
 	@GetMapping("/search")
 	public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> searchProducts(ProductSearchRequest request,
 			Pageable pageable) {
@@ -32,11 +34,13 @@ public class ProductController extends BaseController {
 		return ok(new PageResponse<>(page));
 	}
 
+	@PreAuthorize("permitAll()")
 	@GetMapping("/{id}")
 	public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable Long id) {
 		return ok(productService.getProductById(id));
 	}
 
+	@PreAuthorize("hasRole('ADMIN')")
 	@DeleteMapping("/{id}")
 	public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
 		productService.deleteProduct(id);

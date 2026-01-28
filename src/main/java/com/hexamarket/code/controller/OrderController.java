@@ -1,6 +1,7 @@
 package com.hexamarket.code.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,12 +29,16 @@ public class OrderController extends BaseController {
 
 	private final OrderService orderService;
 
+	// Chỉ user được tạo đơn hàng
+	@PreAuthorize("hasRole('USER')")
 	@PostMapping("/checkout")
 	public ResponseEntity<ApiResponse<OrderResponse>> checkout(@RequestBody @Valid OrderRequest request) {
 		Long userId = SecurityUtils.getCurrentUserId();
 		return created(orderService.checkout(userId, request), "Order placed successfully");
 	}
 
+	// Chỉ admin được cập nhật trạng thái đơn hàng
+	@PreAuthorize("hasRole('ADMIN')")
 	@PatchMapping("/{id}/status")
 	public ResponseEntity<ApiResponse<OrderResponse>> updateStatus(@PathVariable Long id,
 			@RequestParam OrderStatus status) {

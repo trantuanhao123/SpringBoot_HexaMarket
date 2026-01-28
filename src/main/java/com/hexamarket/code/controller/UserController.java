@@ -3,6 +3,7 @@ package com.hexamarket.code.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,33 +30,39 @@ public class UserController extends BaseController {
 
 	private final UserService userService;
 
+	@PreAuthorize("permitAll()")
 	@PostMapping
 	public ResponseEntity<ApiResponse<UserResponse>> createUser(@RequestBody @Valid UserCreationRequest request) {
 		return created(userService.createUser(request), "User created successfully");
 	}
 
+	@PreAuthorize("hasRole('ADMIN')")
 	@GetMapping
 	public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
 		return ok(userService.getAllUsers());
 	}
 
+	@PreAuthorize("hasAnyRole('ADMIN', 'USER')")
 	@GetMapping("/{id}")
 	public ResponseEntity<ApiResponse<UserResponse>> getUser(@PathVariable Long id) {
 		return ok(userService.getUserById(id));
 	}
 
+	@PreAuthorize("isAuthenticated()")
 	@GetMapping("/profile")
 	public ResponseEntity<ApiResponse<UserResponse>> profile(Authentication authentication) {
 		Long userId = (Long) authentication.getPrincipal();
 		return ok(userService.getUserById(userId));
 	}
 
+	@PreAuthorize("hasAnyRole('ADMIN', 'USER')")
 	@PutMapping("/{id}")
 	public ResponseEntity<ApiResponse<UserResponse>> updateUser(@PathVariable Long id,
 			@RequestBody @Valid UserUpdateRequest request) {
 		return ok(userService.updateUser(id, request));
 	}
 
+	@PreAuthorize("hasRole('ADMIN')")
 	@DeleteMapping("/{id}")
 	public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
 		userService.deleteUser(id);

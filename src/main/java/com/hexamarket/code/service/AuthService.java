@@ -78,29 +78,6 @@ public class AuthService extends BaseService {
 	}
 
 	// Đăng nhập
-//	public AuthResponse login(LoginRequest request) {
-//		// AuthenticationManager sẽ tự động gọi UserDetailService để check user/pass
-//		Authentication authentication = authenticationManager
-//				.authenticate(new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
-//		// Nếu vượt qua dòng trên nghĩa là đăng nhập thành công
-//		SecurityContextHolder.getContext().setAuthentication(authentication);
-//		// Lấy thông tin user để tạo token
-////		UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-////		User user = userRepository.findByUsername(userDetails.getUsername())
-////				.orElseThrow(() -> new RuntimeException("User không tồn tại"));
-////		String accessToken = jwtUtils.generateAccessToken(userDetails);
-//		UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-//		User user = userRepository.findByUsername(userDetails.getUsername())
-//				.orElseThrow(() -> new RuntimeException("User không tồn tại"));
-//		String accessToken = jwtUtils.generateAccessToken(user);
-//
-//		String refreshToken = jwtUtils.generateRefreshToken(user.getUsername());
-//		Claims refreshClaims = jwtUtils.extractAllClaims(refreshToken);
-//		String refreshJti = refreshClaims.getId();
-//		tokenService.storeRefreshToken(user.getId(), refreshJti, jwtUtils.getRefreshTokenExpiration());
-//		return AuthResponse.builder().token(accessToken).refreshToken(refreshToken)
-//				.expiresIn(jwtUtils.getAccessTokenExpiration()).build();
-//	}
 	public AuthResponse login(LoginRequest request) {
 		logStart("LOGIN", request.getUsername());
 		Authentication auth = authenticationManager
